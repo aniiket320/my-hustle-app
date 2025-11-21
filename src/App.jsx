@@ -33,10 +33,11 @@ import {
   Moon,
   Flame,
   Trophy,
+  Upload,
   DownloadCloud,
-  Upload
-} from
- 'lucide-react';
+  Play,
+  Pause
+} from 'lucide-react';
 
 // --- IndexedDB Helper for Real File Storage ---
 const DB_NAME = 'CA_Tracker_DB';
@@ -919,6 +920,21 @@ export default function App() {
     return localStorage.getItem('app_theme') || 'light';
   });
   
+  // State: Audio
+  const audioRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const toggleMusic = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+  
   const [openSubjects, setOpenSubjects] = useState({});
   const [view, setView] = useState('dashboard'); 
   const [isEditMode, setIsEditMode] = useState(false);
@@ -1127,6 +1143,21 @@ export default function App() {
             </div>
             
             <div className="flex gap-3 items-center">
+              {/* Music Toggle */}
+              <button
+                onClick={toggleMusic}
+                className={`p-2 rounded-xl transition-all shadow-sm flex items-center gap-2 ${isPlaying ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400 ring-2 ring-rose-200 dark:ring-rose-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                title={isPlaying ? "Pause Hustle Anthem" : "Play Hustle Anthem"}
+              >
+                {isPlaying ? <Pause size={18} className="animate-pulse" /> : <Play size={18} />}
+                <span className="text-xs font-bold hidden sm:block">Vibe</span>
+              </button>
+              <audio ref={audioRef} loop>
+                <source src="/hustle-tune.mp3" type="audio/mpeg" />
+              </audio>
+
+              <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+
               {/* Theme Toggle Button */}
               <button 
                 onClick={toggleTheme}
