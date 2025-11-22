@@ -37,7 +37,8 @@ import {
   DownloadCloud,
   Play,
   Pause,
-  CalendarPlus // New Icon for Reminders
+  CalendarPlus, // New Icon for Reminders
+  CalendarDays // New Icon for Schedule
 } from 'lucide-react';
 
 // --- IndexedDB Helper for Real File Storage ---
@@ -297,6 +298,58 @@ const EditableText = ({ text, onSave, isEditing, className = "" }) => {
       className={`border-b-2 border-purple-500 focus:outline-none bg-white/50 dark:bg-slate-800/50 text-slate-900 dark:text-slate-100 px-2 py-1 rounded max-w-[80%] ${className}`}
       autoFocus
     />
+  );
+};
+
+// --- New Component: Revision Schedule Modal ---
+const RevisionScheduleModal = ({ isOpen, onClose, chapterName, finishedDate }) => {
+  if (!isOpen) return null;
+
+  const dates = SRS_INTERVALS.map((interval, index) => {
+    const date = new Date(finishedDate);
+    date.setDate(date.getDate() + interval);
+    return { level: index + 1, interval, date };
+  });
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100" onClick={e => e.stopPropagation()}>
+        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <CalendarDays size={20} className="text-indigo-500" />
+              Future Revisions
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">{chapterName}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+            <X size={20} className="text-slate-500 dark:text-slate-400" />
+          </button>
+        </div>
+        <div className="p-6 space-y-3 max-h-[60vh] overflow-y-auto">
+          {dates.map((item) => (
+            <div key={item.level} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-xl border border-slate-100 dark:border-slate-700">
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs shadow-sm">
+                  {item.level}
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500">Interval</p>
+                  <p className="font-semibold text-slate-700 dark:text-slate-200 text-sm">+{item.interval} Days</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500">Due Date</p>
+                <p className="font-bold text-indigo-600 dark:text-indigo-400 text-sm">{item.date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 text-center border-t border-slate-100 dark:border-slate-700">
+           <p className="text-xs text-slate-400">Stick to the schedule to master this topic!</p>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -630,7 +683,8 @@ const SubjectSection = ({
   isEditMode,
   onUpdateSubject,
   onUpdateProgressDate,
-  onAddToCalendar // New Prop
+  onAddToCalendar,
+  onViewSchedule // New Prop
 }) => {
   const [activeTab, setActiveTab] = useState('chapters'); // chapters, resources, tests
   const [newChapterName, setNewChapterName] = useState("");
@@ -851,6 +905,14 @@ const SubjectSection = ({
                                >
                                  <CalendarPlus size={16} />
                                </button>
+                               {/* View Schedule Button (NEW) */}
+                               <button 
+                                 onClick={() => onViewSchedule(chapter, chapterData.finishedDate)}
+                                 className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400 dark:hover:bg-purple-900/50 transition-colors"
+                                 title="View Revision Schedule"
+                               >
+                                 <CalendarDays size={16} />
+                               </button>
                             </div>
                           )}
                         </div>
@@ -948,6 +1010,13 @@ export default function App() {
     }
   };
   
+  // State: Schedule Modal
+  const [scheduleModal, setScheduleModal] = useState({ isOpen: false, chapterName: '', finishedDate: '' });
+
+  const openScheduleModal = (chapterName, finishedDate) => {
+    setScheduleModal({ isOpen: true, chapterName, finishedDate });
+  };
+
   // --- Calendar Helper ---
   const addToGoogleCalendar = (subjectName, chapterName, nextRevisionDate) => {
     if (!nextRevisionDate) return;
@@ -1125,7 +1194,8 @@ export default function App() {
 
   // Analytics
   const stats = useMemo(() => {
-    let totalChapters = 0, completedChapters = 0, dueRevisions = 0, dueTodayList = [];
+    let totalChapters = 0, completedChapters = 0, dueRevisions = 0;
+    // Re-calculating dueRevisions for stats, but we will group them in the render
     syllabus.forEach(sub => {
       totalChapters += sub.chapters.length;
       sub.chapters.forEach(ch => {
@@ -1134,17 +1204,23 @@ export default function App() {
           completedChapters++;
           if (getDaysDifference(data.nextRevision) <= 0) {
             dueRevisions++;
-            dueTodayList.push({ subject: sub.name, chapter: ch, id: sub.id });
           }
         }
       });
     });
-    return { totalChapters, completedChapters, percentage: totalChapters === 0 ? 0 : Math.round((completedChapters / totalChapters) * 100), dueRevisions, dueTodayList };
+    return { totalChapters, completedChapters, percentage: totalChapters === 0 ? 0 : Math.round((completedChapters / totalChapters) * 100), dueRevisions };
   }, [progress, syllabus]);
 
   return (
     <div className={`${theme === 'dark' ? 'dark' : ''}`}>
       <div className="min-h-screen bg-[#F3F4F6] dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 pb-24 relative transition-colors duration-300">
+        <RevisionScheduleModal 
+          isOpen={scheduleModal.isOpen} 
+          onClose={() => setScheduleModal({ ...scheduleModal, isOpen: false })}
+          chapterName={scheduleModal.chapterName}
+          finishedDate={scheduleModal.finishedDate}
+        />
+
         {/* Background Mesh Gradient - Adjusted for Dark Mode */}
         <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
           <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-300/30 dark:bg-purple-900/20 rounded-full blur-[100px] animate-pulse"></div>
@@ -1259,35 +1335,48 @@ export default function App() {
               </div>
 
               {stats.dueRevisions > 0 ? (
-                <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-3xl border border-amber-100 dark:border-amber-800/50 shadow-xl shadow-orange-100/50 dark:shadow-none overflow-hidden">
-                  <div className="px-8 py-6 border-b border-amber-100/50 dark:border-amber-800/30 flex items-center gap-4">
-                    <div className="p-3 bg-amber-100 dark:bg-amber-900/40 rounded-xl text-amber-600 dark:text-amber-400">
-                      <Clock size={24} />
-                    </div>
-                    <div>
-                       <h3 className="font-bold text-xl text-amber-900 dark:text-amber-100">Revision Required</h3>
-                       <p className="text-amber-700 dark:text-amber-400 text-sm">Spaced repetition is key to retention.</p>
-                    </div>
-                  </div>
-                  <div className="divide-y divide-amber-100/50 dark:divide-amber-800/30">
-                    {stats.dueTodayList.map((item, idx) => (
-                      <div key={idx} className="p-5 flex items-center justify-between hover:bg-amber-100/20 dark:hover:bg-amber-900/10 transition-colors">
-                        <div>
-                          <p className="text-[10px] font-bold text-amber-500 dark:text-amber-400 uppercase tracking-wider mb-1">{item.subject}</p>
-                          <p className="text-base font-bold text-slate-800 dark:text-slate-200">{item.chapter}</p>
+                <div className="space-y-6">
+                  {syllabus.map(subject => {
+                    // Filter items due today for this specific subject
+                    const dueChapters = subject.chapters.filter(ch => {
+                      const data = progress[subject.id + ch];
+                      return data?.status && getDaysDifference(data.nextRevision) <= 0;
+                    });
+
+                    // If no chapters due for this subject, skip rendering
+                    if (dueChapters.length === 0) return null;
+
+                    return (
+                      <div key={subject.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                        {/* Subject Header */}
+                        <div className={`px-6 py-3 bg-gradient-to-r ${subject.color || 'from-slate-500 to-slate-600'} text-white font-bold flex items-center gap-2`}>
+                          <BookOpen size={18} />
+                          {subject.name}
+                          <span className="ml-auto bg-white/20 px-2 py-0.5 rounded-full text-xs font-medium">
+                            {dueChapters.length} Due
+                          </span>
                         </div>
-                        <button onClick={() => handleReview(item.id, item.chapter)} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-amber-200 dark:shadow-none transition-all transform active:scale-95">Mark Reviewed</button>
-                        {/* Add to Calendar for Due Item */}
-                        <button 
-                           onClick={() => addToGoogleCalendar(item.subject, item.chapter, new Date().toISOString())}
-                           className="p-2 ml-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 transition-colors"
-                           title="Add Reminder"
-                        >
-                           <CalendarPlus size={16} />
-                        </button>
+                        
+                        {/* List of Due Chapters */}
+                        <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                          {dueChapters.map(chapter => (
+                            <div key={chapter} className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{chapter}</p>
+                              </div>
+                              <button 
+                                onClick={() => handleReview(subject.id, chapter)} 
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-transform active:scale-95 flex items-center gap-2"
+                              >
+                                <RefreshCw size={14} />
+                                Mark Reviewed
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
               ) : (
                  <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-3xl border border-emerald-100 dark:border-emerald-800/50 p-8 flex items-center justify-center text-center">
@@ -1349,6 +1438,7 @@ export default function App() {
                     onUpdateSubject={handleUpdateSubject}
                     onUpdateProgressDate={handleUpdateProgressDate}
                     onAddToCalendar={addToGoogleCalendar}
+                    onViewSchedule={openScheduleModal} // Pass the new handler
                   />
                 ))}
               </div>
