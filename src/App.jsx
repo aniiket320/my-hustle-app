@@ -36,7 +36,8 @@ import {
   Upload,
   DownloadCloud,
   Play,
-  Pause
+  Pause,
+  CalendarPlus // New Icon for Reminders
 } from 'lucide-react';
 
 // --- IndexedDB Helper for Real File Storage ---
@@ -628,7 +629,8 @@ const SubjectSection = ({
   onToggleOpen, 
   isEditMode,
   onUpdateSubject,
-  onUpdateProgressDate
+  onUpdateProgressDate,
+  onAddToCalendar // New Prop
 }) => {
   const [activeTab, setActiveTab] = useState('chapters'); // chapters, resources, tests
   const [newChapterName, setNewChapterName] = useState("");
@@ -841,6 +843,14 @@ const SubjectSection = ({
                                     )}
                                   </div>
                                </div>
+                               {/* Add to Calendar Button */}
+                               <button 
+                                 onClick={() => onAddToCalendar(subject.name, chapter, nextRev)}
+                                 className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 transition-colors"
+                                 title="Add Reminder to Google Calendar"
+                               >
+                                 <CalendarPlus size={16} />
+                               </button>
                             </div>
                           )}
                         </div>
@@ -929,12 +939,33 @@ export default function App() {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
-        audioRef.current.play();
+        audioRef.current.play().catch(e => {
+          console.error("Audio play failed", e);
+          setIsPlaying(false); // Revert state if play fails (e.g., autoplay policy)
+        });
       }
       setIsPlaying(!isPlaying);
     }
   };
   
+  // --- Calendar Helper ---
+  const addToGoogleCalendar = (subjectName, chapterName, nextRevisionDate) => {
+    if (!nextRevisionDate) return;
+    
+    const date = new Date(nextRevisionDate);
+    const start = date.toISOString().replace(/-|:|\.\d\d\d/g, "").split("T")[0];
+    // All day event (Start = End date for Google Calendar All Day)
+    const end = new Date(date.getTime() + 86400000).toISOString().replace(/-|:|\.\d\d\d/g, "").split("T")[0];
+    
+    const title = encodeURIComponent(`Revise: ${chapterName} (${subjectName})`);
+    const details = encodeURIComponent(`Time to hustle! Revise this topic to keep the streak alive. #CAInterHustle`);
+    const location = encodeURIComponent("My Hustle App");
+    
+    const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`;
+    
+    window.open(url, '_blank');
+  };
+
   const [openSubjects, setOpenSubjects] = useState({});
   const [view, setView] = useState('dashboard'); 
   const [isEditMode, setIsEditMode] = useState(false);
@@ -1246,6 +1277,14 @@ export default function App() {
                           <p className="text-base font-bold text-slate-800 dark:text-slate-200">{item.chapter}</p>
                         </div>
                         <button onClick={() => handleReview(item.id, item.chapter)} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-amber-200 dark:shadow-none transition-all transform active:scale-95">Mark Reviewed</button>
+                        {/* Add to Calendar for Due Item */}
+                        <button 
+                           onClick={() => addToGoogleCalendar(item.subject, item.chapter, new Date().toISOString())}
+                           className="p-2 ml-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 transition-colors"
+                           title="Add Reminder"
+                        >
+                           <CalendarPlus size={16} />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -1309,6 +1348,7 @@ export default function App() {
                     isEditMode={isEditMode}
                     onUpdateSubject={handleUpdateSubject}
                     onUpdateProgressDate={handleUpdateProgressDate}
+                    onAddToCalendar={addToGoogleCalendar}
                   />
                 ))}
               </div>
